@@ -61,7 +61,6 @@
                             <mainClass>de.mm.fileshuffler.Main</mainClass>
                         </manifest>
                     </archive>
-
                 </configuration>
                 <executions>
                     <execution>
