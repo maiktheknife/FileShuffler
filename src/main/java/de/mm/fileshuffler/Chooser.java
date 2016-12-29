@@ -41,11 +41,12 @@ public class Chooser {
 			isScanningNecessary = false;
 			Collections.shuffle(files);
 			content = new LinkedList<>(files);
-			handleFile(content.poll());
 		}
 
 		if (content.isEmpty()) {
 			JOptionPane.showMessageDialog(null, "Nichts passendes gefunden :( (Filter?)", ":(", JOptionPane.INFORMATION_MESSAGE);
+		} else {
+			handleFile(content.poll());
 		}
 	}
 
