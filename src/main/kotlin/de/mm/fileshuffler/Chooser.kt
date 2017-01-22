@@ -14,21 +14,28 @@ import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 
 class Chooser {
-
 	private val paths: MutableMap<File, Boolean>
 	private var filter: FileFilter
 	private var content: Queue<File>
 	private var isScanningNecessary: Boolean
+	private var isNotificationEnabled: Boolean
 	private lateinit var trayIcon: TrayIcon
 	private lateinit var pathChooser: Menu
 
 	init {
-		this.paths = HashMap<File, Boolean>()
+		this.paths = mutableMapOf()
 		this.paths.put(File(System.getProperty("user.dir")), true)
 		this.content = LinkedList()
 		this.filter = MovieFilter()
 		this.isScanningNecessary = true
+		this.isNotificationEnabled = loadPreferences().getProperty(PREFERENCE_NOTIFICATION, "true").toBoolean()
 		initSystemTray()
+	}
+
+	private fun loadPreferences(): Properties {
+		val properties = Properties()
+		properties.load(Thread.currentThread().contextClassLoader.getResourceAsStream(PREFERENCE_PATH))
+		return properties
 	}
 
 	private fun shuffle() {
@@ -48,26 +55,18 @@ class Chooser {
 	}
 
 	private fun scanFolders(paths: Map<File, Boolean>, filter: FileFilter): List<File> {
-		val files = ArrayList<File>()
-		for (path in paths.keys) {
-			if (paths[path]!!) {
-				files.addAll(getFiles(path, filter))
-			}
-		}
-		return files
+		return paths.keys
+				.filter { paths[it]!! }
+				.flatMap { getFiles(it, filter) }
 	}
 
 	private fun getFiles(path: File, filter: FileFilter): List<File> {
 		LOGGER.debug("getFiles from {}", path.absolutePath)
-		val content = ArrayList<File>()
-		for (file in path.listFiles(filter)!!) {
-			if (file.isDirectory) {
-				content.addAll(getFiles(file, filter))
-			} else {
-				content.add(file)
-			}
-		}
-		return content
+		val (a, b) = path.listFiles(filter)
+				.partition { it.isDirectory }
+
+		return a.flatMap { getFiles(it, filter) }
+				.plus(b)
 	}
 
 	private fun handleFile(f: File) {
@@ -176,6 +175,14 @@ class Chooser {
 		filterChooser.add(movieItem)
 		filterChooser.add(musicItem)
 
+		// settings
+
+		val notificationItem = CheckboxMenuItem("enable messages", isNotificationEnabled)
+		notificationItem.addItemListener { e -> toggleNotification(notificationItem.state) }
+
+		val settingsChooser = Menu("Settings")
+		settingsChooser.add(notificationItem)
+
 		// exit
 
 		val exitItem = MenuItem("Exit")
@@ -186,6 +193,8 @@ class Chooser {
 		popup.add(pathAdder)
 		popup.add(pathChooser)
 		popup.add(filterChooser)
+		popup.addSeparator()
+		popup.add(settingsChooser)
 		popup.addSeparator()
 		popup.add(exitItem)
 
@@ -198,14 +207,17 @@ class Chooser {
 
 	}
 
-	private fun displaySystemTrayMessage(message: String) {
-		LOGGER.debug("displaySystemTrayMessage: '{}'", message)
-		trayIcon.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
+	private fun toggleNotification(state: Boolean) {
+		LOGGER.debug("toggleNotification: '{}'", state)
+		isNotificationEnabled = state
+		loadPreferences().setProperty(PREFERENCE_NOTIFICATION, state.toString())
 	}
 
-	private fun clearSystemTray() {
-		LOGGER.debug("clearSystemTray")
-		SystemTray.getSystemTray().remove(trayIcon)
+	private fun displaySystemTrayMessage(message: String) {
+		LOGGER.debug("displaySystemTrayMessage: '{}' {}", message, isNotificationEnabled)
+		if (isNotificationEnabled) {
+			trayIcon.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
+		}
 	}
 
 	/*
@@ -214,12 +226,15 @@ class Chooser {
 
 	private fun exitProgram() {
 		LOGGER.debug("exitProgram")
-		clearSystemTray()
+		SystemTray.getSystemTray().remove(trayIcon)
 		System.exit(0)
 	}
 
 	companion object {
 		private val LOGGER = LoggerFactory.getLogger(Chooser::class.java)
+		private val PREFERENCE_PATH = "preferences.properties"
+		private val PREFERENCE_NOTIFICATION = "notification.enabled"
+
 	}
 
 }

@@ -3,10 +3,10 @@ Simple Tool (accessible via systemtray only), which scans and randomly opens a f
 
 It's used to avoid long discussions which movie to watch (or sth. like that) :P
 
-##Build
-```
+##B uild
+```bash
 mvn package
 ```
 
-##Usage
+## Usage
 self-explanatory, via systemtray
