@@ -1,12 +1,12 @@
 package de.mm.fileshuffler
 
-import de.mm.fileshuffler.filter.MovieFilter
-import de.mm.fileshuffler.filter.MusicFilter
+import de.mm.fileshuffler.filter.ExtensionFilter
 import org.slf4j.LoggerFactory
 import java.awt.*
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileFilter
+import java.io.FileWriter
 import java.io.IOException
 import java.util.*
 import javax.imageio.ImageIO
@@ -19,6 +19,8 @@ class Chooser {
 	private var content: Queue<File>
 	private var isScanningNecessary: Boolean
 	private var isNotificationEnabled: Boolean
+	private val movieFilter: ExtensionFilter
+	private val musicFilter: ExtensionFilter
 	private lateinit var trayIcon: TrayIcon
 	private lateinit var pathChooser: Menu
 
@@ -26,9 +28,13 @@ class Chooser {
 		this.paths = mutableMapOf()
 		this.paths.put(File(System.getProperty("user.dir")), true)
 		this.content = LinkedList()
-		this.filter = MovieFilter()
 		this.isScanningNecessary = true
-		this.isNotificationEnabled = loadPreferences().getProperty(PREFERENCE_NOTIFICATION, "true").toBoolean()
+
+		val preferences = loadPreferences()
+		this.isNotificationEnabled = preferences.getProperty(PREFERENCE_NOTIFICATION, "true").toBoolean()
+		this.movieFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MOVIE, "").split(",;. \t\n"))
+		this.musicFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MUSIC, "").split(",;. \t\n"))
+		this.filter = this.movieFilter
 		initSystemTray()
 	}
 
@@ -166,10 +172,10 @@ class Chooser {
 		// filter
 
 		val movieItem = MenuItem("Movies")
-		movieItem.addActionListener { e -> setFilter(MovieFilter()) }
+		movieItem.addActionListener { e -> setFilter(movieFilter) }
 
 		val musicItem = MenuItem("Music")
-		musicItem.addActionListener { e -> setFilter(MusicFilter()) }
+		musicItem.addActionListener { e -> setFilter(musicFilter) }
 
 		val filterChooser = Menu("choose FilterTyp")
 		filterChooser.add(movieItem)
@@ -210,7 +216,9 @@ class Chooser {
 	private fun toggleNotification(state: Boolean) {
 		LOGGER.debug("toggleNotification: '{}'", state)
 		isNotificationEnabled = state
-		loadPreferences().setProperty(PREFERENCE_NOTIFICATION, state.toString())
+		val properties = loadPreferences()
+		properties.setProperty(PREFERENCE_NOTIFICATION, state.toString())
+		properties.store(FileWriter(PREFERENCE_PATH), "")
 	}
 
 	private fun displaySystemTrayMessage(message: String) {
@@ -234,6 +242,8 @@ class Chooser {
 		private val LOGGER = LoggerFactory.getLogger(Chooser::class.java)
 		private val PREFERENCE_PATH = "preferences.properties"
 		private val PREFERENCE_NOTIFICATION = "notification.enabled"
+		private val PREFERENCE_FILTER_MUSIC = "filter.music"
+		private val PREFERENCE_FILTER_MOVIE = "filter.movie"
 
 	}
 
