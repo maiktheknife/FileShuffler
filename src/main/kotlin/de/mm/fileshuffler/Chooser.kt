@@ -39,10 +39,14 @@ class Chooser {
 	}
 
 	private fun loadPreferences(): Properties {
-		val properties = Properties()
-		properties.load(Thread.currentThread().contextClassLoader.getResourceAsStream(PREFERENCE_PATH))
-		return properties
+		return Properties().apply {
+			load(Thread.currentThread().contextClassLoader.getResourceAsStream(PREFERENCE_PATH))
+		}
 	}
+
+	/*
+	 * scan
+	 */
 
 	private fun shuffle() {
 		LOGGER.debug("shuffle with scanning: '{}'", isScanningNecessary)
@@ -158,51 +162,61 @@ class Chooser {
 		val trayIconWidth = TrayIcon(trayIconImage).size.width
 		val popup = PopupMenu()
 
-		val playItem = MenuItem("Play a new one")
-		playItem.addActionListener { e -> shuffle() }
+		val playItem = MenuItem("Play a new one").apply {
+			addActionListener { shuffle() }
+		}
 
 		// path
 
-		val pathAdder = MenuItem("add Path")
-		pathAdder.addActionListener { e -> addPath() }
+		val pathAdder = MenuItem("add Path").apply {
+			addActionListener { addPath() }
+		}
 
 		pathChooser = Menu("choose Path")
 		updateChooserIconBoxes()
 
 		// filter
 
-		val movieItem = MenuItem("Movies")
-		movieItem.addActionListener { e -> setFilter(movieFilter) }
+		val movieItem = MenuItem("Movies").apply {
+			addActionListener { setFilter(movieFilter) }
+		}
 
-		val musicItem = MenuItem("Music")
-		musicItem.addActionListener { e -> setFilter(musicFilter) }
+		val musicItem = MenuItem("Music").apply {
+			addActionListener { setFilter(musicFilter) }
+		}
 
-		val filterChooser = Menu("choose FilterTyp")
-		filterChooser.add(movieItem)
-		filterChooser.add(musicItem)
+		val filterChooser = Menu("choose FilterTyp").apply {
+			add(movieItem)
+			add(musicItem)
+		}
 
 		// settings
 
-		val notificationItem = CheckboxMenuItem("enable messages", isNotificationEnabled)
-		notificationItem.addItemListener { e -> toggleNotification(notificationItem.state) }
+		val notificationItem = CheckboxMenuItem("enable messages", isNotificationEnabled).apply {
+			addItemListener { e -> toggleNotification(state) }
+		}
 
-		val settingsChooser = Menu("Settings")
-		settingsChooser.add(notificationItem)
+		val settingsChooser = Menu("Settings").apply {
+			add(notificationItem)
+		}
 
 		// exit
 
-		val exitItem = MenuItem("Exit")
-		exitItem.addActionListener { e -> exitProgram() }
+		val exitItem = MenuItem("Exit").apply {
+			addActionListener { exitProgram() }
+		}
 
-		popup.add(playItem)
-		popup.addSeparator()
-		popup.add(pathAdder)
-		popup.add(pathChooser)
-		popup.add(filterChooser)
-		popup.addSeparator()
-		popup.add(settingsChooser)
-		popup.addSeparator()
-		popup.add(exitItem)
+		popup.apply {
+			add(playItem)
+			addSeparator()
+			add(pathAdder)
+			add(pathChooser)
+			add(filterChooser)
+			addSeparator()
+			add(settingsChooser)
+			addSeparator()
+			add(exitItem)
+		}
 
 		trayIcon = TrayIcon(trayIconImage.getScaledInstance(trayIconWidth, -1, Image.SCALE_SMOOTH), "FileShuffler", popup)
 		try {
@@ -216,9 +230,10 @@ class Chooser {
 	private fun toggleNotification(state: Boolean) {
 		LOGGER.debug("toggleNotification: '{}'", state)
 		isNotificationEnabled = state
-		val properties = loadPreferences()
-		properties.setProperty(PREFERENCE_NOTIFICATION, state.toString())
-		properties.store(FileWriter(PREFERENCE_PATH), "")
+		loadPreferences().apply {
+			setProperty(PREFERENCE_NOTIFICATION, state.toString())
+			store(FileWriter(PREFERENCE_PATH), "")
+		}
 	}
 
 	private fun displaySystemTrayMessage(message: String) {
@@ -244,7 +259,6 @@ class Chooser {
 		private val PREFERENCE_NOTIFICATION = "notification.enabled"
 		private val PREFERENCE_FILTER_MUSIC = "filter.music"
 		private val PREFERENCE_FILTER_MOVIE = "filter.movie"
-
 	}
 
 }
