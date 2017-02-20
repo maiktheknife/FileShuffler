@@ -1,12 +1,12 @@
 package de.mm.fileshuffler
 
-import de.mm.fileshuffler.filter.MovieFilter
-import de.mm.fileshuffler.filter.MusicFilter
+import de.mm.fileshuffler.filter.ExtensionFilter
 import org.slf4j.LoggerFactory
 import java.awt.*
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileFilter
+import java.io.FileWriter
 import java.io.IOException
 import java.util.*
 import javax.imageio.ImageIO
@@ -14,22 +14,39 @@ import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 
 class Chooser {
-
 	private val paths: MutableMap<File, Boolean>
 	private var filter: FileFilter
 	private var content: Queue<File>
 	private var isScanningNecessary: Boolean
+	private var isNotificationEnabled: Boolean
+	private val movieFilter: ExtensionFilter
+	private val musicFilter: ExtensionFilter
 	private lateinit var trayIcon: TrayIcon
 	private lateinit var pathChooser: Menu
 
 	init {
-		this.paths = HashMap<File, Boolean>()
+		this.paths = mutableMapOf()
 		this.paths.put(File(System.getProperty("user.dir")), true)
 		this.content = LinkedList()
-		this.filter = MovieFilter()
 		this.isScanningNecessary = true
+
+		val preferences = loadPreferences()
+		this.isNotificationEnabled = preferences.getProperty(PREFERENCE_NOTIFICATION, "true").toBoolean()
+		this.movieFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MOVIE, "").split(",;. \t\n"))
+		this.musicFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MUSIC, "").split(",;. \t\n"))
+		this.filter = this.movieFilter
 		initSystemTray()
 	}
+
+	private fun loadPreferences(): Properties {
+		return Properties().apply {
+			load(Thread.currentThread().contextClassLoader.getResourceAsStream(PREFERENCE_PATH))
+		}
+	}
+
+	/*
+	 * scan
+	 */
 
 	private fun shuffle() {
 		LOGGER.debug("shuffle with scanning: '{}'", isScanningNecessary)
@@ -48,26 +65,18 @@ class Chooser {
 	}
 
 	private fun scanFolders(paths: Map<File, Boolean>, filter: FileFilter): List<File> {
-		val files = ArrayList<File>()
-		for (path in paths.keys) {
-			if (paths[path]!!) {
-				files.addAll(getFiles(path, filter))
-			}
-		}
-		return files
+		return paths.keys
+				.filter { paths[it]!! }
+				.flatMap { getFiles(it, filter) }
 	}
 
 	private fun getFiles(path: File, filter: FileFilter): List<File> {
 		LOGGER.debug("getFiles from {}", path.absolutePath)
-		val content = ArrayList<File>()
-		for (file in path.listFiles(filter)!!) {
-			if (file.isDirectory) {
-				content.addAll(getFiles(file, filter))
-			} else {
-				content.add(file)
-			}
-		}
-		return content
+		val (a, b) = path.listFiles(filter)
+				.partition { it.isDirectory }
+
+		return a.flatMap { getFiles(it, filter) }
+				.plus(b)
 	}
 
 	private fun handleFile(f: File) {
@@ -153,41 +162,61 @@ class Chooser {
 		val trayIconWidth = TrayIcon(trayIconImage).size.width
 		val popup = PopupMenu()
 
-		val playItem = MenuItem("Play a new one")
-		playItem.addActionListener { e -> shuffle() }
+		val playItem = MenuItem("Play a new one").apply {
+			addActionListener { shuffle() }
+		}
 
 		// path
 
-		val pathAdder = MenuItem("add Path")
-		pathAdder.addActionListener { e -> addPath() }
+		val pathAdder = MenuItem("add Path").apply {
+			addActionListener { addPath() }
+		}
 
 		pathChooser = Menu("choose Path")
 		updateChooserIconBoxes()
 
 		// filter
 
-		val movieItem = MenuItem("Movies")
-		movieItem.addActionListener { e -> setFilter(MovieFilter()) }
+		val movieItem = MenuItem("Movies").apply {
+			addActionListener { setFilter(movieFilter) }
+		}
 
-		val musicItem = MenuItem("Music")
-		musicItem.addActionListener { e -> setFilter(MusicFilter()) }
+		val musicItem = MenuItem("Music").apply {
+			addActionListener { setFilter(musicFilter) }
+		}
 
-		val filterChooser = Menu("choose FilterTyp")
-		filterChooser.add(movieItem)
-		filterChooser.add(musicItem)
+		val filterChooser = Menu("choose FilterTyp").apply {
+			add(movieItem)
+			add(musicItem)
+		}
+
+		// settings
+
+		val notificationItem = CheckboxMenuItem("enable messages", isNotificationEnabled).apply {
+			addItemListener { e -> toggleNotification(state) }
+		}
+
+		val settingsChooser = Menu("Settings").apply {
+			add(notificationItem)
+		}
 
 		// exit
 
-		val exitItem = MenuItem("Exit")
-		exitItem.addActionListener { e -> exitProgram() }
+		val exitItem = MenuItem("Exit").apply {
+			addActionListener { exitProgram() }
+		}
 
-		popup.add(playItem)
-		popup.addSeparator()
-		popup.add(pathAdder)
-		popup.add(pathChooser)
-		popup.add(filterChooser)
-		popup.addSeparator()
-		popup.add(exitItem)
+		popup.apply {
+			add(playItem)
+			addSeparator()
+			add(pathAdder)
+			add(pathChooser)
+			add(filterChooser)
+			addSeparator()
+			add(settingsChooser)
+			addSeparator()
+			add(exitItem)
+		}
 
 		trayIcon = TrayIcon(trayIconImage.getScaledInstance(trayIconWidth, -1, Image.SCALE_SMOOTH), "FileShuffler", popup)
 		try {
@@ -198,14 +227,20 @@ class Chooser {
 
 	}
 
-	private fun displaySystemTrayMessage(message: String) {
-		LOGGER.debug("displaySystemTrayMessage: '{}'", message)
-		trayIcon.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
+	private fun toggleNotification(state: Boolean) {
+		LOGGER.debug("toggleNotification: '{}'", state)
+		isNotificationEnabled = state
+		loadPreferences().apply {
+			setProperty(PREFERENCE_NOTIFICATION, state.toString())
+			store(FileWriter(PREFERENCE_PATH), "")
+		}
 	}
 
-	private fun clearSystemTray() {
-		LOGGER.debug("clearSystemTray")
-		SystemTray.getSystemTray().remove(trayIcon)
+	private fun displaySystemTrayMessage(message: String) {
+		LOGGER.debug("displaySystemTrayMessage: '{}' {}", message, isNotificationEnabled)
+		if (isNotificationEnabled) {
+			trayIcon.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
+		}
 	}
 
 	/*
@@ -214,12 +249,16 @@ class Chooser {
 
 	private fun exitProgram() {
 		LOGGER.debug("exitProgram")
-		clearSystemTray()
+		SystemTray.getSystemTray().remove(trayIcon)
 		System.exit(0)
 	}
 
 	companion object {
 		private val LOGGER = LoggerFactory.getLogger(Chooser::class.java)
+		private val PREFERENCE_PATH = "preferences.properties"
+		private val PREFERENCE_NOTIFICATION = "notification.enabled"
+		private val PREFERENCE_FILTER_MUSIC = "filter.music"
+		private val PREFERENCE_FILTER_MOVIE = "filter.movie"
 	}
 
 }
