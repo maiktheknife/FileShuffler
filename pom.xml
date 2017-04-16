@@ -11,7 +11,7 @@
     <properties>
         <slf4j.version>1.6.4</slf4j.version>
         <logback.version>1.0.1</logback.version>
-        <kotlin.version>1.0.6</kotlin.version>
+        <kotlin.version>1.1.1</kotlin.version>
     </properties>
 
     <dependencies>
