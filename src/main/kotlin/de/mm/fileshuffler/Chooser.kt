@@ -14,7 +14,7 @@ import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 
 class Chooser {
-	private val paths: MutableMap<File, Boolean>
+	private val paths: MutableMap<File, Boolean> = mutableMapOf()
 	private var filter: FileFilter
 	private var content: Queue<File>
 	private var isScanningNecessary: Boolean
@@ -25,15 +25,14 @@ class Chooser {
 	private lateinit var pathChooser: Menu
 
 	init {
-		this.paths = mutableMapOf()
 		this.paths.put(File(System.getProperty("user.dir")), true)
 		this.content = LinkedList()
 		this.isScanningNecessary = true
 
 		val preferences = loadPreferences()
 		this.isNotificationEnabled = preferences.getProperty(PREFERENCE_NOTIFICATION, "true").toBoolean()
-		this.movieFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MOVIE, "").split(",;. \t\n"))
-		this.musicFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MUSIC, "").split(",;. \t\n"))
+		this.movieFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MOVIE, "").split(SPLIT_PATTERN))
+		this.musicFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MUSIC, "").split(SPLIT_PATTERN))
 		this.filter = this.movieFilter
 		initSystemTray()
 	}
@@ -232,7 +231,7 @@ class Chooser {
 		isNotificationEnabled = state
 		loadPreferences().apply {
 			setProperty(PREFERENCE_NOTIFICATION, state.toString())
-			store(FileWriter(PREFERENCE_PATH), "")
+			store(FileWriter(PREFERENCE_PATH), null)
 		}
 	}
 
@@ -259,6 +258,7 @@ class Chooser {
 		private val PREFERENCE_NOTIFICATION = "notification.enabled"
 		private val PREFERENCE_FILTER_MUSIC = "filter.music"
 		private val PREFERENCE_FILTER_MOVIE = "filter.movie"
+		private val SPLIT_PATTERN = ",;. \t\n"
 	}
 
 }
