@@ -1,12 +1,13 @@
 package de.mm.fileshuffler
 
 import de.mm.fileshuffler.filter.ExtensionFilter
+import de.mm.fileshuffler.service.FolderService
+import de.mm.fileshuffler.service.PreferenceService
 import org.slf4j.LoggerFactory
 import java.awt.*
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileFilter
-import java.io.FileWriter
 import java.io.IOException
 import java.util.*
 import javax.imageio.ImageIO
@@ -21,26 +22,20 @@ class Chooser {
 	private var isNotificationEnabled: Boolean
 	private val movieFilter: ExtensionFilter
 	private val musicFilter: ExtensionFilter
+	private val preferenceService = PreferenceService()
 	private lateinit var trayIcon: TrayIcon
 	private lateinit var pathChooser: Menu
 
 	init {
-		this.paths.put(File(System.getProperty("user.dir")), true)
+		this.isNotificationEnabled = preferenceService.isNotificationEnabled()
+		this.movieFilter = ExtensionFilter(preferenceService.getMovieExtensions())
+		this.musicFilter = ExtensionFilter(preferenceService.getMusicExtensions())
+		this.filter = this.movieFilter
+		this.paths.putAll(FolderService.loadFolders().map { Pair(it, true) })
 		this.content = LinkedList()
 		this.isScanningNecessary = true
 
-		val preferences = loadPreferences()
-		this.isNotificationEnabled = preferences.getProperty(PREFERENCE_NOTIFICATION, "true").toBoolean()
-		this.movieFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MOVIE, "").split(SPLIT_PATTERN))
-		this.musicFilter = ExtensionFilter(preferences.getProperty(PREFERENCE_FILTER_MUSIC, "").split(SPLIT_PATTERN))
-		this.filter = this.movieFilter
 		initSystemTray()
-	}
-
-	private fun loadPreferences(): Properties {
-		return Properties().apply {
-			load(Thread.currentThread().contextClassLoader.getResourceAsStream(PREFERENCE_PATH))
-		}
 	}
 
 	/*
@@ -71,7 +66,8 @@ class Chooser {
 
 	private fun getFiles(path: File, filter: FileFilter): List<File> {
 		LOGGER.debug("getFiles from {}", path.absolutePath)
-		val (a, b) = path.listFiles(filter)
+		val (a, b) = path
+				.listFiles(filter)
 				.partition { it.isDirectory }
 
 		return a.flatMap { getFiles(it, filter) }
@@ -101,7 +97,7 @@ class Chooser {
 
 	private fun addPath() {
 		LOGGER.debug("addPath")
-		val chooser = JFileChooser(paths.keys.iterator().next())
+		val chooser = JFileChooser()
 		chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
 		val returnVal = chooser.showOpenDialog(null)
 		if (returnVal == JFileChooser.APPROVE_OPTION) {
@@ -229,10 +225,7 @@ class Chooser {
 	private fun toggleNotification(state: Boolean) {
 		LOGGER.debug("toggleNotification: '{}'", state)
 		isNotificationEnabled = state
-		loadPreferences().apply {
-			setProperty(PREFERENCE_NOTIFICATION, state.toString())
-			store(FileWriter(PREFERENCE_PATH), null)
-		}
+		preferenceService.setNotificationEnabled(state)
 	}
 
 	private fun displaySystemTrayMessage(message: String) {
@@ -248,17 +241,14 @@ class Chooser {
 
 	private fun exitProgram() {
 		LOGGER.debug("exitProgram")
+		preferenceService.storePreferences()
+		FolderService.storeFolders(paths.map { it.key }.toSet())
 		SystemTray.getSystemTray().remove(trayIcon)
 		System.exit(0)
 	}
 
 	companion object {
 		private val LOGGER = LoggerFactory.getLogger(Chooser::class.java)
-		private val PREFERENCE_PATH = "preferences.properties"
-		private val PREFERENCE_NOTIFICATION = "notification.enabled"
-		private val PREFERENCE_FILTER_MUSIC = "filter.music"
-		private val PREFERENCE_FILTER_MOVIE = "filter.movie"
-		private val SPLIT_PATTERN = ",;. \t\n"
 	}
 
 }
