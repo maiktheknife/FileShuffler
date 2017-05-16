@@ -13,3 +13,7 @@ buildNumber.properties
 .idea/
 *.iml
 *.log
+
+#ignore local files
+/fileshuffler.properties
+/fileshuffler.recent
