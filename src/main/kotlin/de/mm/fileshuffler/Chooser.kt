@@ -66,12 +66,16 @@ class Chooser {
 
 	private fun getFiles(path: File, filter: FileFilter): List<File> {
 		LOGGER.debug("getFiles from {}", path.absolutePath)
-		val (a, b) = path
-				.listFiles(filter)
-				.partition { it.isDirectory }
 
-		return a.flatMap { getFiles(it, filter) }
-				.plus(b)
+		val files = path.listFiles(filter)
+		if (files != null) {
+			val (a, b) = files.partition { it.isDirectory }
+			return a.flatMap { getFiles(it, filter) }
+					.plus(b)
+		} else {
+			LOGGER.info("Path $path not available")
+			return listOf()
+		}
 	}
 
 	private fun handleFile(f: File) {
