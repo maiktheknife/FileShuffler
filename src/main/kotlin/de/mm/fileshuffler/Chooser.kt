@@ -1,41 +1,40 @@
 package de.mm.fileshuffler
 
 import de.mm.fileshuffler.filter.ExtensionFilter
-import de.mm.fileshuffler.service.FolderService
 import de.mm.fileshuffler.service.PreferenceService
+import de.mm.fileshuffler.service.RecentFolderService
 import org.slf4j.LoggerFactory
 import java.awt.*
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileFilter
 import java.io.IOException
-import java.util.*
 import javax.imageio.ImageIO
 import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 
 class Chooser {
 	private val paths: MutableMap<File, Boolean> = mutableMapOf()
-	private var filter: FileFilter
-	private var content: Queue<File>
-	private var isScanningNecessary: Boolean
-	private var isNotificationEnabled: Boolean
 	private val movieFilter: ExtensionFilter
 	private val musicFilter: ExtensionFilter
 	private val preferenceService = PreferenceService()
-	private lateinit var trayIcon: TrayIcon
-	private lateinit var pathChooser: Menu
+	private var filter: FileFilter
+	private var isScanningNecessary: Boolean
+	private var isNotificationEnabled: Boolean
+	private var mode: Mode
+	private var trayIcon: TrayIcon? = null
+	private lateinit var pathChoicer: Menu
+	private lateinit var modeItem: MenuItem
 
 	init {
 		this.isNotificationEnabled = preferenceService.isNotificationEnabled()
 		this.movieFilter = ExtensionFilter(preferenceService.getMovieExtensions())
 		this.musicFilter = ExtensionFilter(preferenceService.getMusicExtensions())
 		this.filter = this.movieFilter
-		this.paths.putAll(FolderService.loadFolders().map { Pair(it, true) })
-		this.content = LinkedList()
+		this.paths.putAll(RecentFolderService.getRecentFolders().map { Pair(it, true) })
 		this.isScanningNecessary = true
-
-		initSystemTray()
+		this.mode = Mode.RANDOM
+		initSystemTray(this.mode)
 	}
 
 	/*
@@ -45,36 +44,15 @@ class Chooser {
 	private fun shuffle() {
 		LOGGER.debug("shuffle with scanning: '{}'", isScanningNecessary)
 		if (isScanningNecessary) {
-			val files = scanFolders(paths, filter)
+			mode.init(paths, filter)
 			isScanningNecessary = false
-			Collections.shuffle(files)
-			content = LinkedList(files)
 		}
 
-		if (content.isEmpty()) {
-			JOptionPane.showMessageDialog(null, "Nichts passendes gefunden :( (Filter?)", ":(", JOptionPane.INFORMATION_MESSAGE)
+		val file = mode.pop()
+		if (file == null) {
+			displayDialog("Nichts passendes gefunden :( (Filter?)")
 		} else {
-			handleFile(content.poll())
-		}
-	}
-
-	private fun scanFolders(paths: Map<File, Boolean>, filter: FileFilter): List<File> {
-		return paths.keys
-				.filter { paths[it]!! }
-				.flatMap { getFiles(it, filter) }
-	}
-
-	private fun getFiles(path: File, filter: FileFilter): List<File> {
-		LOGGER.debug("getFiles from {}", path.absolutePath)
-
-		val files = path.listFiles(filter)
-		if (files != null) {
-			val (a, b) = files.partition { it.isDirectory }
-			return a.flatMap { getFiles(it, filter) }
-					.plus(b)
-		} else {
-			LOGGER.info("Path $path not available")
-			return listOf()
+			handleFile(file)
 		}
 	}
 
@@ -86,12 +64,11 @@ class Chooser {
 				displaySystemTrayMessage(f.name)
 			} catch (e: IOException) {
 				LOGGER.error("handleFile '{}' konnte nicht geöffnent werden", e)
-				JOptionPane.showMessageDialog(null, "Fehler beim Handeln\n " + e.message, "Error", JOptionPane.ERROR_MESSAGE)
+				displayDialog("Fehler beim Handeln\n: ${e.message}", JOptionPane.ERROR_MESSAGE)
 			}
-
 		} else {
 			LOGGER.warn("handleFile '{}' konnte nicht geöffnent werden (Desktop not supported", f)
-			JOptionPane.showMessageDialog(null, "File:\n$f\n wurde gewürfelt, konnte aber nicht geöffnent werden", "Error", JOptionPane.WARNING_MESSAGE)
+			displayDialog("File:\n$f\n wurde gewürfelt, konnte aber nicht geöffnent werden", JOptionPane.WARNING_MESSAGE)
 		}
 	}
 
@@ -116,11 +93,11 @@ class Chooser {
 
 	private fun updateChooserIconBoxes() {
 		LOGGER.debug("updateChooserIconBoxes")
-		pathChooser.removeAll()
-		for (path in paths.keys) {
-			val checkboxMenuItem = CheckboxMenuItem(path.name, paths[path]!!)
-			checkboxMenuItem.addItemListener { e -> togglePath(path, checkboxMenuItem.state) }
-			pathChooser.add(checkboxMenuItem)
+		pathChoicer.removeAll()
+		paths.keys.forEach {
+			val checkboxMenuItem = CheckboxMenuItem(it.name, paths[it]!!)
+			checkboxMenuItem.addItemListener { _ -> togglePath(it, checkboxMenuItem.state) }
+			pathChoicer.add(checkboxMenuItem)
 		}
 	}
 
@@ -147,68 +124,73 @@ class Chooser {
 	 * SystemTray
 	 */
 
-	private fun initSystemTray() {
+	private fun initSystemTray(mode: Mode) {
 		LOGGER.debug("initSystemTray")
-		val trayIconImage: BufferedImage
-		try {
-			val s = Thread.currentThread().contextClassLoader.getResourceAsStream("images/dice.png")
-			trayIconImage = ImageIO.read(s)
-		} catch (e: IOException) {
-			LOGGER.error("error while reading dice image", e)
-			return
-		}
 
-		val trayIconWidth = TrayIcon(trayIconImage).size.width
-		val popup = PopupMenu()
-
+		// play
 		val playItem = MenuItem("Play a new one").apply {
 			addActionListener { shuffle() }
 		}
 
-		// path
-
-		val pathAdder = MenuItem("add Path").apply {
-			addActionListener { addPath() }
+		// mode
+		modeItem = MenuItem().apply {
+			addActionListener { toggleMode(mode.other()) }
+			label = when (mode) {
+				Mode.QUEUE -> "Mode (use random))"
+				Mode.RANDOM -> "Mode (use queue)"
+			}
 		}
 
-		pathChooser = Menu("choose Path")
+		// path
+		pathChoicer = Menu("choose")
 		updateChooserIconBoxes()
 
+		val pathChooser = Menu("Path").apply {
+			add(MenuItem("add").apply {
+				addActionListener { addPath() }
+			})
+			add(pathChoicer)
+		}
+
 		// filter
-
-		val movieItem = MenuItem("Movies").apply {
-			addActionListener { setFilter(movieFilter) }
+		val filterChooser = Menu("FilterTyp").apply {
+			add(MenuItem("Movies").apply {
+				addActionListener { setFilter(movieFilter) }
+			})
+			add(MenuItem("Music").apply {
+				addActionListener { setFilter(musicFilter) }
+			})
 		}
 
-		val musicItem = MenuItem("Music").apply {
-			addActionListener { setFilter(musicFilter) }
-		}
-
-		val filterChooser = Menu("choose FilterTyp").apply {
-			add(movieItem)
-			add(musicItem)
+		// queue
+		val queueChooser = Menu("Queue").apply {
+			add(MenuItem("Reload").apply {
+				addActionListener {
+					LOGGER.debug("refill queue")
+					mode.reload(paths, filter)
+				}
+			})
 		}
 
 		// settings
-
-		val notificationItem = CheckboxMenuItem("enable messages", isNotificationEnabled).apply {
-			addItemListener { e -> toggleNotification(state) }
-		}
-
 		val settingsChooser = Menu("Settings").apply {
-			add(notificationItem)
+			add(CheckboxMenuItem("enable messages", isNotificationEnabled).apply {
+				addItemListener { _ -> toggleNotification(state) }
+			})
 		}
 
 		// exit
-
 		val exitItem = MenuItem("Exit").apply {
 			addActionListener { exitProgram() }
 		}
 
-		popup.apply {
+		val popup = PopupMenu().apply {
 			add(playItem)
 			addSeparator()
-			add(pathAdder)
+			add(modeItem)
+			if (mode === Mode.QUEUE) {
+				add(queueChooser)
+			}
 			add(pathChooser)
 			add(filterChooser)
 			addSeparator()
@@ -217,12 +199,14 @@ class Chooser {
 			add(exitItem)
 		}
 
-		trayIcon = TrayIcon(trayIconImage.getScaledInstance(trayIconWidth, -1, Image.SCALE_SMOOTH), "FileShuffler", popup)
-		try {
-			SystemTray.getSystemTray().add(trayIcon)
-			displaySystemTrayMessage("ready for orders")
-		} catch (ignored: AWTException) {
+		val diceImage = Thread.currentThread().contextClassLoader.getResourceAsStream("images/dice.png")
+		val trayIconImage = ImageIO.read(diceImage)
+		if (trayIcon != null){
+			SystemTray.getSystemTray().remove(trayIcon)
 		}
+		trayIcon = TrayIcon(trayIconImage.getScaledInstance(TrayIcon(trayIconImage).size.width, -1, Image.SCALE_SMOOTH), "FileShuffler", popup)
+		SystemTray.getSystemTray().add(trayIcon)
+		displaySystemTrayMessage("ready for orders")
 
 	}
 
@@ -232,11 +216,26 @@ class Chooser {
 		preferenceService.setNotificationEnabled(state)
 	}
 
+	private fun toggleMode(mode: Mode) {
+		LOGGER.debug("toggleMode to: '{}'", mode)
+		this.mode = mode
+		modeItem.label = when (mode) {
+			Mode.QUEUE -> "Mode (use random))"
+			Mode.RANDOM -> "Mode (use queue)"
+		}
+		initSystemTray(mode)
+	}
+
 	private fun displaySystemTrayMessage(message: String) {
 		LOGGER.debug("displaySystemTrayMessage: '{}' {}", message, isNotificationEnabled)
 		if (isNotificationEnabled) {
-			trayIcon.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
+			trayIcon?.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
 		}
+	}
+
+	private fun displayDialog(message: String, mode: Int = JOptionPane.INFORMATION_MESSAGE) {
+		LOGGER.debug("displayDialog '{}'", message)
+		JOptionPane.showMessageDialog(null, message, "Error", mode)
 	}
 
 	/*
@@ -245,8 +244,9 @@ class Chooser {
 
 	private fun exitProgram() {
 		LOGGER.debug("exitProgram")
+		mode.shutdown()
 		preferenceService.storePreferences()
-		FolderService.storeFolders(paths.map { it.key }.toSet())
+		RecentFolderService.storeRecentFolders(paths.keys)
 		SystemTray.getSystemTray().remove(trayIcon)
 		System.exit(0)
 	}

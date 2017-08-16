@@ -8,12 +8,12 @@ import java.util.*
 /**
  * Created by Max on 09.05.2017.
  */
-object FolderService {
+object RecentFolderService {
 
 	private const val ENCODING = "UTF-8"
 	private const val RECENT_FILES_NAME = "fileshuffler.recent"
 
-	fun loadFolders(): Set<File> {
+	fun getRecentFolders(): Set<File> {
 		val file = File(RECENT_FILES_NAME)
 		if (file.exists() && file.canRead()) {
 			return FileUtils
@@ -21,12 +21,10 @@ object FolderService {
 					.map { File(it) }
 					.toSet()
 		} else {
-			return Collections.emptySet()
+			return setOf()
 		}
 	}
 
-	fun storeFolders(folders: Set<File>) {
-		FileUtils.writeLines(File(RECENT_FILES_NAME), ENCODING, folders)
-	}
+	fun storeRecentFolders(folders: Set<File>) = FileUtils.writeLines(File(RECENT_FILES_NAME), ENCODING, folders)
 
 }
