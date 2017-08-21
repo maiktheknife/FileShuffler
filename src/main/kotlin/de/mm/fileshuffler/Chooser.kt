@@ -133,12 +133,8 @@ class Chooser {
 		}
 
 		// mode
-		modeItem = MenuItem().apply {
+		modeItem = MenuItem("Mode (use queue)").apply {
 			addActionListener { toggleMode(mode.other()) }
-			label = when (mode) {
-				Mode.QUEUE -> "Mode (use random))"
-				Mode.RANDOM -> "Mode (use queue)"
-			}
 		}
 
 		// path
@@ -220,7 +216,7 @@ class Chooser {
 		LOGGER.debug("toggleMode to: '{}'", mode)
 		this.mode = mode
 		modeItem.label = when (mode) {
-			Mode.QUEUE -> "Mode (use random))"
+			Mode.QUEUE -> "Mode (use random)"
 			Mode.RANDOM -> "Mode (use queue)"
 		}
 		initSystemTray(mode)
