@@ -1,4 +1,4 @@
-package de.mm.fileshuffler.service;
+package de.mm.fileshuffler.service
 
 import org.apache.commons.io.FileUtils
 import java.io.File
@@ -13,13 +13,13 @@ object RecentFolderService {
 
 	fun getRecentFolders(): Set<File> {
 		val file = File(RECENT_FILES_NAME)
-		if (file.exists() && file.canRead()) {
-			return FileUtils
+		return if (file.exists() && file.canRead()) {
+			FileUtils
 					.readLines(file, ENCODING)
 					.map { File(it) }
 					.toSet()
 		} else {
-			return setOf()
+			setOf()
 		}
 	}
 

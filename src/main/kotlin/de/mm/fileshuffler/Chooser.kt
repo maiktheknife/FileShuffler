@@ -21,14 +21,12 @@ class Chooser {
 	private val preferenceService = PreferenceService()
 	private var filter: FileFilter
 	private var isScanningNecessary: Boolean
-	private var isNotificationEnabled: Boolean
 	private var mode: Mode
 	private var trayIcon: TrayIcon? = null
 	private lateinit var pathChoicer: Menu
 	private lateinit var modeItem: MenuItem
 
 	init {
-		this.isNotificationEnabled = preferenceService.isNotificationEnabled()
 		this.movieFilter = ExtensionFilter(preferenceService.getMovieExtensions())
 		this.musicFilter = ExtensionFilter(preferenceService.getMusicExtensions())
 		this.filter = this.movieFilter
@@ -62,7 +60,6 @@ class Chooser {
 		if (Desktop.isDesktopSupported()) {
 			try {
 				Desktop.getDesktop().open(f)
-				displaySystemTrayMessage(f.name)
 			} catch (e: IOException) {
 				LOGGER.error("handleFile '{}' konnte nicht geöffnent werden", e)
 				displayDialog("Fehler beim Handeln\n: ${e.message}", JOptionPane.ERROR_MESSAGE)
@@ -85,9 +82,9 @@ class Chooser {
 		if (returnVal == JFileChooser.APPROVE_OPTION) {
 			val path = chooser.selectedFile
 			LOGGER.debug("addPath '{}'", path)
-			this.paths.put(path, true)
+			this.paths[path] = true
 			this.isScanningNecessary = true
-			displaySystemTrayMessage("Path: " + path.path)
+			displaySystemTrayMessage("Path: ${path.path}")
 			updateChooserIconBoxes()
 		}
 	}
@@ -106,11 +103,11 @@ class Chooser {
 		LOGGER.debug("togglePath {} {}", path, shouldAdd)
 		isScanningNecessary = true
 		if (shouldAdd) {
-			paths.put(path, shouldAdd)
-			displaySystemTrayMessage("add path: " + path)
+			paths[path] = shouldAdd
+			displaySystemTrayMessage("add path: $path")
 		} else {
 			paths.remove(path)
-			displaySystemTrayMessage("remove path: " + path)
+			displaySystemTrayMessage("remove path: $path")
 		}
 	}
 
@@ -118,7 +115,6 @@ class Chooser {
 		LOGGER.debug("setFilter to '{}'", filter)
 		this.filter = filter
 		this.isScanningNecessary = true
-		displaySystemTrayMessage("Filter: " + filter.toString())
 	}
 
 	/*
@@ -168,13 +164,6 @@ class Chooser {
 			})
 		}
 
-		// settings
-		val settingsChooser = Menu("Settings").apply {
-			add(CheckboxMenuItem("enable messages", isNotificationEnabled).apply {
-				addItemListener { _ -> toggleNotification(state) }
-			})
-		}
-
 		// exit
 		val exitItem = MenuItem("Exit").apply {
 			addActionListener { exitProgram() }
@@ -187,8 +176,6 @@ class Chooser {
 			}
 			add(pathChooser)
 			add(filterChooser)
-			addSeparator()
-			add(settingsChooser)
 			addSeparator()
 			add(exitItem)
 		}
@@ -211,12 +198,6 @@ class Chooser {
 
 	}
 
-	private fun toggleNotification(state: Boolean) {
-		LOGGER.debug("toggleNotification: '{}'", state)
-		isNotificationEnabled = state
-		preferenceService.setNotificationEnabled(state)
-	}
-
 	private fun toggleMode(mode: Mode) {
 		LOGGER.debug("toggleMode to: '{}'", mode)
 		this.mode = mode
@@ -224,10 +205,8 @@ class Chooser {
 	}
 
 	private fun displaySystemTrayMessage(message: String) {
-		LOGGER.debug("displaySystemTrayMessage: '{}' {}", message, isNotificationEnabled)
-		if (isNotificationEnabled) {
-			trayIcon?.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
-		}
+		LOGGER.debug("displaySystemTrayMessage: '{}'", message)
+		trayIcon?.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
 	}
 
 	private fun displayDialog(message: String, mode: Int = JOptionPane.INFORMATION_MESSAGE) {

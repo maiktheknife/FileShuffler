@@ -20,6 +20,8 @@ enum class Mode {
 		}
 
 		override fun other() = QUEUE
+
+		override fun shutdown() {}
 	},
 
 	QUEUE {
@@ -38,23 +40,23 @@ enum class Mode {
 			} else {
 				queue = refillQueue(paths, filter)
 			}
+			storeQueueFile(queue)
 		}
 
 		override fun reload(paths: Map<File, Boolean>, filter: FileFilter) {
 			queue = refillQueue(paths, filter)
+			storeQueueFile(queue)
 		}
 
 		private fun refillQueue(paths: Map<File, Boolean>, filter: FileFilter): Queue<File> {
-			val files = LinkedList(FileScanner.getFiles(paths, filter))
-			storeQueueFile(files)
-			return files
+			return LinkedList(FileScanner.getFiles(paths, filter))
 		}
 
 		override fun other() = RANDOM
 
-		fun storeQueueFile(queue: Collection<File>) = FileUtils.writeLines(File(QUEUE_FILE_NAME), ENCODING, queue)
-
 		override fun shutdown() = storeQueueFile(queue)
+
+		private fun storeQueueFile(queue: Collection<File>) = FileUtils.writeLines(File(QUEUE_FILE_NAME), ENCODING, queue)
 
 	};
 
@@ -68,6 +70,6 @@ enum class Mode {
 
 	fun pop(): File? = queue.poll()
 
-	open fun shutdown() {}
+	abstract fun shutdown()
 
 }

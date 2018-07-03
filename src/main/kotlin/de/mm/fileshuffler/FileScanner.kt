@@ -25,13 +25,13 @@ object FileScanner {
 		LOGGER.debug("getFilesRec from {}", path.absolutePath)
 
 		val files = path.listFiles(filter)
-		if (files != null) {
+		return if (files != null) {
 			val (a, b) = files.partition { it.isDirectory }
-			return a.flatMap { getFilesRec(it, filter) }
+			a.flatMap { getFilesRec(it, filter) }
 					.plus(b)
 		} else {
 			LOGGER.info("Path $path not available")
-			return listOf()
+			listOf()
 		}
 	}
 
