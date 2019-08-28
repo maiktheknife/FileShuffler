@@ -9,16 +9,16 @@ import javax.swing.UIManager
  */
 object Main {
 
-	@JvmStatic
-	fun main(args: Array<String>) {
+    @JvmStatic
+    fun main(args: Array<String>) {
 
-		UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
+        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
 
-		if (!SystemTray.isSupported()) {
-			JOptionPane.showMessageDialog(null, "SystemTray is not supported", "Error", JOptionPane.ERROR_MESSAGE)
-		} else {
-			Chooser()
-		}
+        if (!SystemTray.isSupported()) {
+            JOptionPane.showMessageDialog(null, "SystemTray is not supported", "Error", JOptionPane.ERROR_MESSAGE)
+        } else {
+            Chooser()
+        }
 
-	}
+    }
 }

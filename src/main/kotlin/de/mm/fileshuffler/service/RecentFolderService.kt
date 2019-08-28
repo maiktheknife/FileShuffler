@@ -8,21 +8,21 @@ import java.io.File
  */
 object RecentFolderService {
 
-	private const val ENCODING = "UTF-8"
-	private const val RECENT_FILES_NAME = "fileshuffler.recent"
+    private const val ENCODING = "UTF-8"
+    private const val RECENT_FILES_NAME = "fileshuffler.recent"
 
-	fun getRecentFolders(): Set<File> {
-		val file = File(RECENT_FILES_NAME)
-		return if (file.exists() && file.canRead()) {
-			FileUtils
-					.readLines(file, ENCODING)
-					.map { File(it) }
-					.toSet()
-		} else {
-			setOf()
-		}
-	}
+    fun getRecentFolders(): Set<File> {
+        val file = File(RECENT_FILES_NAME)
+        return if (file.exists() && file.canRead()) {
+            FileUtils
+                    .readLines(file, ENCODING)
+                    .map { File(it) }
+                    .toSet()
+        } else {
+            setOf()
+        }
+    }
 
-	fun storeRecentFolders(folders: Set<File>) = FileUtils.writeLines(File(RECENT_FILES_NAME), ENCODING, folders)
+    fun storeRecentFolders(folders: Set<File>) = FileUtils.writeLines(File(RECENT_FILES_NAME), ENCODING, folders)
 
 }

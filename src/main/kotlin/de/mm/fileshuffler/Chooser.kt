@@ -15,220 +15,220 @@ import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 
 class Chooser {
-	private val paths: MutableMap<File, Boolean> = mutableMapOf()
-	private val movieFilter: ExtensionFilter
-	private val musicFilter: ExtensionFilter
-	private val preferenceService = PreferenceService()
-	private var filter: FileFilter
-	private var isScanningNecessary: Boolean
-	private var mode: Mode
-	private var trayIcon: TrayIcon? = null
-	private lateinit var pathChoicer: Menu
-	private lateinit var modeItem: MenuItem
+    private val paths: MutableMap<File, Boolean> = mutableMapOf()
+    private val movieFilter: ExtensionFilter
+    private val musicFilter: ExtensionFilter
+    private val preferenceService = PreferenceService()
+    private var filter: FileFilter
+    private var isScanningNecessary: Boolean
+    private var mode: Mode
+    private var trayIcon: TrayIcon? = null
+    private lateinit var pathChoicer: Menu
+    private lateinit var modeItem: MenuItem
 
-	init {
-		this.movieFilter = ExtensionFilter(preferenceService.getMovieExtensions())
-		this.musicFilter = ExtensionFilter(preferenceService.getMusicExtensions())
-		this.filter = this.movieFilter
-		this.paths.putAll(RecentFolderService.getRecentFolders().map { Pair(it, true) })
-		this.isScanningNecessary = true
-		this.mode = Mode.RANDOM
-		initSystemTray(this.mode)
-	}
+    init {
+        this.movieFilter = ExtensionFilter(preferenceService.getMovieExtensions())
+        this.musicFilter = ExtensionFilter(preferenceService.getMusicExtensions())
+        this.filter = this.movieFilter
+        this.paths.putAll(RecentFolderService.getRecentFolders().map { Pair(it, true) })
+        this.isScanningNecessary = true
+        this.mode = Mode.RANDOM
+        initSystemTray(this.mode)
+    }
 
-	/*
-	 * scan
-	 */
+    /*
+     * scan
+     */
 
-	private fun shuffle() {
-		LOGGER.debug("shuffle with scanning: '{}'", isScanningNecessary)
-		if (isScanningNecessary) {
-			mode.init(paths, filter)
-			isScanningNecessary = false
-		}
+    private fun shuffle() {
+        LOGGER.debug("shuffle with scanning: '{}'", isScanningNecessary)
+        if (isScanningNecessary) {
+            mode.init(paths, filter)
+            isScanningNecessary = false
+        }
 
-		val file = mode.pop()
-		if (file == null) {
-			displayDialog("Nichts passendes gefunden :( (Filter?)")
-		} else {
-			handleFile(file)
-		}
-	}
+        val file = mode.pop()
+        if (file == null) {
+            displayDialog("Nichts passendes gefunden :( (Filter?)")
+        } else {
+            handleFile(file)
+        }
+    }
 
-	private fun handleFile(f: File) {
-		LOGGER.debug("handleFile: '{}'", f.absolutePath)
-		if (Desktop.isDesktopSupported()) {
-			try {
-				Desktop.getDesktop().open(f)
-			} catch (e: IOException) {
-				LOGGER.error("handleFile '{}' konnte nicht geöffnent werden", e)
-				displayDialog("Fehler beim Handeln\n: ${e.message}", JOptionPane.ERROR_MESSAGE)
-			}
-		} else {
-			LOGGER.warn("handleFile '{}' konnte nicht geöffnent werden (Desktop not supported", f)
-			displayDialog("File:\n$f\n wurde gewürfelt, konnte aber nicht geöffnent werden", JOptionPane.WARNING_MESSAGE)
-		}
-	}
+    private fun handleFile(f: File) {
+        LOGGER.debug("handleFile: '{}'", f.absolutePath)
+        if (Desktop.isDesktopSupported()) {
+            try {
+                Desktop.getDesktop().open(f)
+            } catch (e: IOException) {
+                LOGGER.error("handleFile '{}' konnte nicht geöffnent werden", e)
+                displayDialog("Fehler beim Handeln\n: ${e.message}", JOptionPane.ERROR_MESSAGE)
+            }
+        } else {
+            LOGGER.warn("handleFile '{}' konnte nicht geöffnent werden (Desktop not supported", f)
+            displayDialog("File:\n$f\n wurde gewürfelt, konnte aber nicht geöffnent werden", JOptionPane.WARNING_MESSAGE)
+        }
+    }
 
-	/*
-	 * Path
-	 */
+    /*
+     * Path
+     */
 
-	private fun addPath() {
-		LOGGER.debug("addPath")
-		val chooser = JFileChooser()
-		chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-		val returnVal = chooser.showOpenDialog(null)
-		if (returnVal == JFileChooser.APPROVE_OPTION) {
-			val path = chooser.selectedFile
-			LOGGER.debug("addPath '{}'", path)
-			this.paths[path] = true
-			this.isScanningNecessary = true
-			displaySystemTrayMessage("Path: ${path.path}")
-			updateChooserIconBoxes()
-		}
-	}
+    private fun addPath() {
+        LOGGER.debug("addPath")
+        val chooser = JFileChooser()
+        chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+        val returnVal = chooser.showOpenDialog(null)
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            val path = chooser.selectedFile
+            LOGGER.debug("addPath '{}'", path)
+            this.paths[path] = true
+            this.isScanningNecessary = true
+            displaySystemTrayMessage("Path: ${path.path}")
+            updateChooserIconBoxes()
+        }
+    }
 
-	private fun updateChooserIconBoxes() {
-		LOGGER.debug("updateChooserIconBoxes")
-		pathChoicer.removeAll()
-		paths.keys.forEach {
-			val checkboxMenuItem = CheckboxMenuItem(it.name, paths[it]!!)
-			checkboxMenuItem.addItemListener { _ -> togglePath(it, checkboxMenuItem.state) }
-			pathChoicer.add(checkboxMenuItem)
-		}
-	}
+    private fun updateChooserIconBoxes() {
+        LOGGER.debug("updateChooserIconBoxes")
+        pathChoicer.removeAll()
+        paths.keys.forEach {
+            val checkboxMenuItem = CheckboxMenuItem(it.name, paths[it]!!)
+            checkboxMenuItem.addItemListener { _ -> togglePath(it, checkboxMenuItem.state) }
+            pathChoicer.add(checkboxMenuItem)
+        }
+    }
 
-	private fun togglePath(path: File, shouldAdd: Boolean) {
-		LOGGER.debug("togglePath {} {}", path, shouldAdd)
-		isScanningNecessary = true
-		if (shouldAdd) {
-			paths[path] = shouldAdd
-			displaySystemTrayMessage("add path: $path")
-		} else {
-			paths.remove(path)
-			displaySystemTrayMessage("remove path: $path")
-		}
-	}
+    private fun togglePath(path: File, shouldAdd: Boolean) {
+        LOGGER.debug("togglePath {} {}", path, shouldAdd)
+        isScanningNecessary = true
+        if (shouldAdd) {
+            paths[path] = shouldAdd
+            displaySystemTrayMessage("add path: $path")
+        } else {
+            paths.remove(path)
+            displaySystemTrayMessage("remove path: $path")
+        }
+    }
 
-	private fun setFilter(filter: FileFilter) {
-		LOGGER.debug("setFilter to '{}'", filter)
-		this.filter = filter
-		this.isScanningNecessary = true
-	}
+    private fun setFilter(filter: FileFilter) {
+        LOGGER.debug("setFilter to '{}'", filter)
+        this.filter = filter
+        this.isScanningNecessary = true
+    }
 
-	/*
-	 * SystemTray
-	 */
+    /*
+     * SystemTray
+     */
 
-	private fun initSystemTray(mode: Mode) {
-		LOGGER.debug("initSystemTray")
+    private fun initSystemTray(mode: Mode) {
+        LOGGER.debug("initSystemTray")
 
-		// mode
-		modeItem = MenuItem().apply {
-			addActionListener { toggleMode(mode.other()) }
-			label = when (mode) {
-				Mode.QUEUE -> "Mode (use random)"
-				Mode.RANDOM -> "Mode (use queue)"
-			}
-		}
+        // mode
+        modeItem = MenuItem().apply {
+            addActionListener { toggleMode(mode.other()) }
+            label = when (mode) {
+                Mode.QUEUE -> "Mode (use random)"
+                Mode.RANDOM -> "Mode (use queue)"
+            }
+        }
 
-		// path
-		pathChoicer = Menu("choose")
-		updateChooserIconBoxes()
+        // path
+        pathChoicer = Menu("choose")
+        updateChooserIconBoxes()
 
-		val pathChooser = Menu("Path").apply {
-			add(MenuItem("add").apply {
-				addActionListener { addPath() }
-			})
-			add(pathChoicer)
-		}
+        val pathChooser = Menu("Path").apply {
+            add(MenuItem("add").apply {
+                addActionListener { addPath() }
+            })
+            add(pathChoicer)
+        }
 
-		// filter
-		val filterChooser = Menu("FilterTyp").apply {
-			add(MenuItem("Movies").apply {
-				addActionListener { setFilter(movieFilter) }
-			})
-			add(MenuItem("Music").apply {
-				addActionListener { setFilter(musicFilter) }
-			})
-		}
+        // filter
+        val filterChooser = Menu("FilterTyp").apply {
+            add(MenuItem("Movies").apply {
+                addActionListener { setFilter(movieFilter) }
+            })
+            add(MenuItem("Music").apply {
+                addActionListener { setFilter(musicFilter) }
+            })
+        }
 
-		// queue
-		val queueChooser = Menu("Queue").apply {
-			add(MenuItem("Reload").apply {
-				addActionListener {
-					LOGGER.debug("refill queue")
-					mode.reload(paths, filter)
-				}
-			})
-		}
+        // queue
+        val queueChooser = Menu("Queue").apply {
+            add(MenuItem("Reload").apply {
+                addActionListener {
+                    LOGGER.debug("refill queue")
+                    mode.reload(paths, filter)
+                }
+            })
+        }
 
-		// exit
-		val exitItem = MenuItem("Exit").apply {
-			addActionListener { exitProgram() }
-		}
+        // exit
+        val exitItem = MenuItem("Exit").apply {
+            addActionListener { exitProgram() }
+        }
 
-		val popup = PopupMenu().apply {
-			add(modeItem)
-			if (mode === Mode.QUEUE) {
-				add(queueChooser)
-			}
-			add(pathChooser)
-			add(filterChooser)
-			addSeparator()
-			add(exitItem)
-		}
+        val popup = PopupMenu().apply {
+            add(modeItem)
+            if (mode === Mode.QUEUE) {
+                add(queueChooser)
+            }
+            add(pathChooser)
+            add(filterChooser)
+            addSeparator()
+            add(exitItem)
+        }
 
-		val diceImage = Thread.currentThread().contextClassLoader.getResourceAsStream("images/dice.png")
-		val trayIconImage = ImageIO.read(diceImage)
-		if (trayIcon != null) {
-			SystemTray.getSystemTray().remove(trayIcon)
-		}
-		trayIcon = TrayIcon(trayIconImage.getScaledInstance(TrayIcon(trayIconImage).size.width, -1, Image.SCALE_SMOOTH), "FileShuffler", popup)
-		trayIcon?.addMouseListener(object : MouseAdapter() {
-			override fun mouseClicked(e: MouseEvent) {
-				if (e.button == MouseEvent.BUTTON1) {
-					shuffle()
-				}
-			}
-		})
-		SystemTray.getSystemTray().add(trayIcon)
-		displaySystemTrayMessage("ready for orders")
+        val diceImage = Thread.currentThread().contextClassLoader.getResourceAsStream("images/dice.png")
+        val trayIconImage = ImageIO.read(diceImage)
+        if (trayIcon != null) {
+            SystemTray.getSystemTray().remove(trayIcon)
+        }
+        trayIcon = TrayIcon(trayIconImage.getScaledInstance(TrayIcon(trayIconImage).size.width, -1, Image.SCALE_SMOOTH), "FileShuffler", popup)
+        trayIcon?.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.button == MouseEvent.BUTTON1) {
+                    shuffle()
+                }
+            }
+        })
+        SystemTray.getSystemTray().add(trayIcon)
+        displaySystemTrayMessage("ready for orders")
 
-	}
+    }
 
-	private fun toggleMode(mode: Mode) {
-		LOGGER.debug("toggleMode to: '{}'", mode)
-		this.mode = mode
-		initSystemTray(mode)
-	}
+    private fun toggleMode(mode: Mode) {
+        LOGGER.debug("toggleMode to: '{}'", mode)
+        this.mode = mode
+        initSystemTray(mode)
+    }
 
-	private fun displaySystemTrayMessage(message: String) {
-		LOGGER.debug("displaySystemTrayMessage: '{}'", message)
-		trayIcon?.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
-	}
+    private fun displaySystemTrayMessage(message: String) {
+        LOGGER.debug("displaySystemTrayMessage: '{}'", message)
+        trayIcon?.displayMessage("FileShuffler", message, TrayIcon.MessageType.INFO)
+    }
 
-	private fun displayDialog(message: String, mode: Int = JOptionPane.INFORMATION_MESSAGE) {
-		LOGGER.debug("displayDialog '{}'", message)
-		JOptionPane.showMessageDialog(null, message, "Error", mode)
-	}
+    private fun displayDialog(message: String, mode: Int = JOptionPane.INFORMATION_MESSAGE) {
+        LOGGER.debug("displayDialog '{}'", message)
+        JOptionPane.showMessageDialog(null, message, "Error", mode)
+    }
 
-	/*
-	 * exit
-	 */
+    /*
+     * exit
+     */
 
-	private fun exitProgram() {
-		LOGGER.debug("exitProgram")
-		mode.shutdown()
-		preferenceService.storePreferences()
-		RecentFolderService.storeRecentFolders(paths.keys)
-		SystemTray.getSystemTray().remove(trayIcon)
-		System.exit(0)
-	}
+    private fun exitProgram() {
+        LOGGER.debug("exitProgram")
+        mode.shutdown()
+        preferenceService.storePreferences()
+        RecentFolderService.storeRecentFolders(paths.keys)
+        SystemTray.getSystemTray().remove(trayIcon)
+        System.exit(0)
+    }
 
-	companion object {
-		private val LOGGER = LoggerFactory.getLogger(Chooser::class.java)
-	}
+    companion object {
+        private val LOGGER = LoggerFactory.getLogger(Chooser::class.java)
+    }
 
 }

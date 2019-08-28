@@ -10,66 +10,66 @@ import java.util.*
  */
 enum class Mode {
 
-	RANDOM {
-		override fun init(paths: Map<File, Boolean>, filter: FileFilter) {
-			queue = FileScanner.getFiles(paths, filter)
-		}
+    RANDOM {
+        override fun init(paths: Map<File, Boolean>, filter: FileFilter) {
+            queue = FileScanner.getFiles(paths, filter)
+        }
 
-		override fun reload(paths: Map<File, Boolean>, filter: FileFilter) {
-			init(paths, filter)
-		}
+        override fun reload(paths: Map<File, Boolean>, filter: FileFilter) {
+            init(paths, filter)
+        }
 
-		override fun other() = QUEUE
+        override fun other() = QUEUE
 
-		override fun shutdown() {}
-	},
+        override fun shutdown() {}
+    },
 
-	QUEUE {
-		private val ENCODING = "UTF-8"
-		private val QUEUE_FILE_NAME = "fileshuffler.queue"
+    QUEUE {
+        private val ENCODING = "UTF-8"
+        private val QUEUE_FILE_NAME = "fileshuffler.queue"
 
-		override fun init(paths: Map<File, Boolean>, filter: FileFilter) {
-			val file = File(QUEUE_FILE_NAME)
-			if (file.exists() && file.canRead()) {
-				queue = LinkedList(FileUtils
-						.readLines(file, ENCODING)
-						.map { File(it) })
-				if (queue.isEmpty()) {
-					queue = refillQueue(paths, filter)
-				}
-			} else {
-				queue = refillQueue(paths, filter)
-			}
-			storeQueueFile(queue)
-		}
+        override fun init(paths: Map<File, Boolean>, filter: FileFilter) {
+            val file = File(QUEUE_FILE_NAME)
+            if (file.exists() && file.canRead()) {
+                queue = LinkedList(FileUtils
+                        .readLines(file, ENCODING)
+                        .map { File(it) })
+                if (queue.isEmpty()) {
+                    queue = refillQueue(paths, filter)
+                }
+            } else {
+                queue = refillQueue(paths, filter)
+            }
+            storeQueueFile(queue)
+        }
 
-		override fun reload(paths: Map<File, Boolean>, filter: FileFilter) {
-			queue = refillQueue(paths, filter)
-			storeQueueFile(queue)
-		}
+        override fun reload(paths: Map<File, Boolean>, filter: FileFilter) {
+            queue = refillQueue(paths, filter)
+            storeQueueFile(queue)
+        }
 
-		private fun refillQueue(paths: Map<File, Boolean>, filter: FileFilter): Queue<File> {
-			return LinkedList(FileScanner.getFiles(paths, filter))
-		}
+        private fun refillQueue(paths: Map<File, Boolean>, filter: FileFilter): Queue<File> {
+            return LinkedList(FileScanner.getFiles(paths, filter))
+        }
 
-		override fun other() = RANDOM
+        override fun other() = RANDOM
 
-		override fun shutdown() = storeQueueFile(queue)
+        override fun shutdown() = storeQueueFile(queue)
 
-		private fun storeQueueFile(queue: Collection<File>) = FileUtils.writeLines(File(QUEUE_FILE_NAME), ENCODING, queue)
+        private fun storeQueueFile(queue: Collection<File>) = FileUtils.writeLines(File(QUEUE_FILE_NAME), ENCODING, queue)
 
-	};
+    };
 
-	protected var queue: Queue<File> = LinkedList()
+    protected var queue: Queue<File> = LinkedList()
 
-	abstract fun init(paths: Map<File, Boolean>, filter: FileFilter)
+    abstract fun init(paths: Map<File, Boolean>, filter: FileFilter)
 
-	abstract fun reload(paths: Map<File, Boolean>, filter: FileFilter)
+    abstract fun reload(paths: Map<File, Boolean>, filter: FileFilter)
 
-	abstract fun other(): Mode
+    abstract fun other(): Mode
 
-	fun pop(): File? = queue.poll()
+    fun pop(): File? = queue.poll()
 
-	abstract fun shutdown()
+    abstract fun shutdown()
 
 }
