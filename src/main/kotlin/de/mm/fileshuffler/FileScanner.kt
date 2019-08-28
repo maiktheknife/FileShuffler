@@ -15,9 +15,9 @@ object FileScanner {
 	fun getFiles(paths: Map<File, Boolean>, filter: FileFilter): Queue<File> {
 		LOGGER.debug("getFilesRec from {}", paths)
 		val files = paths.keys
-				.filter { paths[it]!! }
+				.filter { paths.getValue(it) }
 				.flatMap { getFilesRec(it, filter) }
-		Collections.shuffle(files)
+				.shuffled()
 		return LinkedList(files)
 	}
 
